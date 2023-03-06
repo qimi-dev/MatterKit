@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">MatterKit</string>
+    <!-- main -->
+    <string name="title_main_page">My Device</string>
 </resources>
