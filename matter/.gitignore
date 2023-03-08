@@ -1,1 +1,16 @@
-/build
+build
+libs/AndroidPlatform.jar
+libs/CHIPController.jar
+libs/SetupPayloadParser.jar
+libs/jniLibs/arm64-v8a/libc++_shared.so
+libs/jniLibs/arm64-v8a/libCHIPController.so
+libs/jniLibs/arm64-v8a/libSetupPayloadParser.so
+libs/jniLibs/armeabi-v7a/libc++_shared.so
+libs/jniLibs/armeabi-v7a/libCHIPController.so
+libs/jniLibs/armeabi-v7a/libSetupPayloadParser.so
+libs/jniLibs/x86/libc++_shared.so
+libs/jniLibs/x86/libCHIPController.so
+libs/jniLibs/x86/libSetupPayloadParser.so
+libs/jniLibs/x86_64/libc++_shared.so
+libs/jniLibs/x86_64/libCHIPController.so
+libs/jniLibs/x86_64/libSetupPayloadParser.so
