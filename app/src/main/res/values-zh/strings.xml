@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">MatterKit</string>
+    <!-- main -->
+    <string name="title_main_page">我的设备</string>
+    <string name="title_add_device">添加设备</string>
+    <string name="hint_add_device">扫描二维码并将手机放置在设备附近。</string>
+    <string name="title_scan_qr_code">扫描二维码</string>
+    <string name="content_scan_qr_code">
+        寻找设备或者包装上面的二维码。
+    </string>
+
+    <string name="title_hold_phone_near_device">
+        手机放置在设备附近
+    </string>
+    <string name="content_hold_phone_near_device">
+        为了更好地发现设备，将手机放置在设备附近。
+    </string>
+    <string name="title_confirm_add_device">Matter 设备</string>
+    <string name="label_confirm_add_device">添加到 \"我的设备\"</string>
+    <string name="title_provide_network_credentials">提供网络凭证</string>
+    <string name="label_input_ssid">输入wifi名称</string>
+    <string name="label_input_password">输入wifi密码</string>
+    <string name="label_start_pair_device">开始配对设备</string>
+    <string name="title_connecting_device">正在连接设备</string>
+    <string name="hint_connecting_device">确保设备在手机附近且设备已进入配网状态</string>
+</resources>

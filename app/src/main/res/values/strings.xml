@@ -2,4 +2,22 @@
     <string name="app_name">MatterKit</string>
     <!-- main -->
     <string name="title_main_page">My Device</string>
+    <string name="title_add_device">Add Device</string>
+    <string name="hint_add_device">Scan QR code and hold your phone near the device.</string>
+    <string name="title_scan_qr_code">Scan QR code</string>
+    <string name="content_scan_qr_code">
+        Look for a QR code on the device or device packaging.
+    </string>
+    <string name="title_hold_phone_near_device">Hold phone near device</string>
+    <string name="content_hold_phone_near_device">
+        To better discover devices, hold your phone near the device.
+    </string>
+    <string name="title_confirm_add_device">Matter Device</string>
+    <string name="label_confirm_add_device">Add to \"My Device\"</string>
+    <string name="title_provide_network_credentials">Provide network credentials</string>
+    <string name="label_input_ssid">Enter ssid</string>
+    <string name="label_input_password">Enter password</string>
+    <string name="label_start_pair_device">Start pair device</string>
+    <string name="title_connecting_device">Connecting to device</string>
+    <string name="hint_connecting_device">Make sure device is nearby</string>
 </resources>
