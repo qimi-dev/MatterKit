@@ -15,6 +15,7 @@ buildscript {
         camerax_version = '1.2.0'
         barcode_scanning_version = '17.0.3'
         lottie_version = '5.2.0'
+        startup_version = '1.1.1'
     }
 }
 

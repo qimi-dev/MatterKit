@@ -81,4 +81,6 @@ dependencies {
     implementation "com.google.mlkit:barcode-scanning:$barcode_scanning_version"
     // lottie
     implementation "com.airbnb.android:lottie-compose:$lottie_version"
+    // matter
+    implementation project(path: ':matter')
 }

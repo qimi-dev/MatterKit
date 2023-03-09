@@ -39,5 +39,8 @@ android {
 }
 
 dependencies {
-
+    // startup
+    implementation "androidx.startup:startup-runtime:$startup_version"
+    // matter
+    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'], exclude: [])
 }

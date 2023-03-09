@@ -44,6 +44,8 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.qimidev.demo.matterkit.R
 import com.qimidev.demo.matterkit.ui.DialogScaffold
+import com.qimidev.sdk.matter.core.model.MatterSetupPayload
+import com.qimidev.sdk.matter.core.model.WifiCredentials
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -72,7 +74,10 @@ fun MainRoute(
         }
         AddDeviceDialog(
             uiState = addDeviceDialogUiState,
-            onStopAddDevice = viewModel::stopAddDevice
+            onStopAddDevice = viewModel::stopAddDevice,
+            onHandleSetupPayload = viewModel::handleSetupPayload,
+            onConfirmConnectionToDevice = viewModel::confirmConnectionToDevice,
+            onProvideNetworkCredentials = viewModel::startConnectionToDevice
         )
     }
 }
@@ -116,7 +121,10 @@ private fun MainScreen(
 @Composable
 private fun AddDeviceDialog(
     uiState: AddDeviceDialogUiState,
-    onStopAddDevice: () -> Unit
+    onStopAddDevice: () -> Unit,
+    onHandleSetupPayload: (String) -> Unit,
+    onConfirmConnectionToDevice: (MatterSetupPayload) -> Unit,
+    onProvideNetworkCredentials: (MatterSetupPayload, WifiCredentials) -> Unit
 ) {
     when (uiState) {
         is AddDeviceDialogUiState.Searching -> {
@@ -154,9 +162,7 @@ private fun AddDeviceDialog(
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         CodeScanningBox(
-                            onResult = {
-
-                            },
+                            onResult = onHandleSetupPayload,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -245,7 +251,9 @@ private fun AddDeviceDialog(
                         iterations = LottieConstants.IterateForever
                     )
                     Button(
-                        onClick = { /*TODO*/ },
+                        onClick = {
+                            onConfirmConnectionToDevice(uiState.payload)
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -331,7 +339,15 @@ private fun AddDeviceDialog(
                         shape = RoundedCornerShape(16.dp)
                     )
                     Button(
-                        onClick = { /*TODO*/ },
+                        onClick = {
+                            onProvideNetworkCredentials(
+                                uiState.payload,
+                                WifiCredentials(
+                                    ssid = ssid,
+                                    password = password
+                                )
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -355,7 +371,8 @@ private fun AddDeviceDialog(
                 properties = DialogProperties(
                     dismissOnBackPress = false,
                     dismissOnClickOutside = false
-                )
+                ),
+                isShowCloseAction = false
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -386,6 +403,9 @@ private fun AddDeviceDialog(
                     )
                 }
             }
+        }
+        is AddDeviceDialogUiState.Success -> {
+
         }
         else -> Unit
     }
