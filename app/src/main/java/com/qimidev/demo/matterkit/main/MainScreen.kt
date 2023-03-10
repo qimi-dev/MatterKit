@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
@@ -55,8 +54,8 @@ fun MainRoute(
     modifier: Modifier = Modifier,
     viewModel: MainViewModel = hiltViewModel()
 ) {
-    val addDeviceDialogUiState: AddDeviceDialogUiState by viewModel
-        .addDeviceDialogUiState.collectAsState()
+    val setupDialogUiState: SetupDialogUiState by viewModel
+        .setupDialogUiStateStream.collectAsState()
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -73,7 +72,7 @@ fun MainRoute(
             )
         }
         AddDeviceDialog(
-            uiState = addDeviceDialogUiState,
+            uiState = setupDialogUiState,
             onStopAddDevice = viewModel::stopAddDevice,
             onHandleSetupPayload = viewModel::handleSetupPayload,
             onConfirmConnectionToDevice = viewModel::confirmConnectionToDevice,
@@ -120,14 +119,14 @@ private fun MainScreen(
 
 @Composable
 private fun AddDeviceDialog(
-    uiState: AddDeviceDialogUiState,
+    uiState: SetupDialogUiState,
     onStopAddDevice: () -> Unit,
     onHandleSetupPayload: (String) -> Unit,
     onConfirmConnectionToDevice: (MatterSetupPayload) -> Unit,
     onProvideNetworkCredentials: (MatterSetupPayload, WifiCredentials) -> Unit
 ) {
     when (uiState) {
-        is AddDeviceDialogUiState.Searching -> {
+        is SetupDialogUiState.Searching -> {
             DialogScaffold(
                 onDismissRequest = onStopAddDevice,
                 properties = DialogProperties(
@@ -221,7 +220,7 @@ private fun AddDeviceDialog(
                 }
             }
         }
-        is AddDeviceDialogUiState.Confirm -> {
+        is SetupDialogUiState.Confirm -> {
             DialogScaffold(
                 onDismissRequest = onStopAddDevice,
                 properties = DialogProperties(
@@ -271,7 +270,7 @@ private fun AddDeviceDialog(
                 }
             }
         }
-        is AddDeviceDialogUiState.ProvideNetworkCredentials -> {
+        is SetupDialogUiState.ProvideNetworkCredentials -> {
             DialogScaffold(
                 onDismissRequest = onStopAddDevice,
                 properties = DialogProperties(
@@ -365,7 +364,7 @@ private fun AddDeviceDialog(
                 }
             }
         }
-        is AddDeviceDialogUiState.Connecting -> {
+        is SetupDialogUiState.Connecting -> {
             DialogScaffold(
                 onDismissRequest = onStopAddDevice,
                 properties = DialogProperties(
@@ -404,7 +403,7 @@ private fun AddDeviceDialog(
                 }
             }
         }
-        is AddDeviceDialogUiState.Success -> {
+        is SetupDialogUiState.Success -> {
 
         }
         else -> Unit

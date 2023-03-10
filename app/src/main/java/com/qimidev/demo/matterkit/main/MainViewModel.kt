@@ -15,24 +15,24 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor() : ViewModel() {
 
-    private val _addDeviceDialogUiState: MutableStateFlow<AddDeviceDialogUiState> =
-        MutableStateFlow(AddDeviceDialogUiState.Idle)
+    private val _setupDialogUiStateStream: MutableStateFlow<SetupDialogUiState> =
+        MutableStateFlow(SetupDialogUiState.Idle)
 
-    val addDeviceDialogUiState: StateFlow<AddDeviceDialogUiState> =
-        _addDeviceDialogUiState.asStateFlow()
+    val setupDialogUiStateStream: StateFlow<SetupDialogUiState> =
+        _setupDialogUiStateStream.asStateFlow()
 
     fun startAddDevice() {
-        _addDeviceDialogUiState.update {
-            if (it is AddDeviceDialogUiState.Idle) AddDeviceDialogUiState.Searching else it
+        _setupDialogUiStateStream.update {
+            if (it is SetupDialogUiState.Idle) SetupDialogUiState.Searching else it
         }
     }
 
     fun handleSetupPayload(payload: String) {
         Timber.d("handleSetupPayload - payload=${payload}")
-        _addDeviceDialogUiState.update {
+        _setupDialogUiStateStream.update {
             val payloadResult: Result<MatterSetupPayload> = Matter.decodeSetupPayload(payload)
-            if (it is AddDeviceDialogUiState.Searching && payloadResult.isSuccess) {
-                AddDeviceDialogUiState.Confirm(
+            if (it is SetupDialogUiState.Searching && payloadResult.isSuccess) {
+                SetupDialogUiState.Confirm(
                     payload = payloadResult.getOrThrow()
                 )
             } else {
@@ -43,9 +43,9 @@ class MainViewModel @Inject constructor() : ViewModel() {
 
     fun confirmConnectionToDevice(payload: MatterSetupPayload) {
         Timber.d("confirmConnectionToDevice - payload=${payload}")
-        _addDeviceDialogUiState.update {
-            if (it is AddDeviceDialogUiState.Confirm) {
-                AddDeviceDialogUiState.ProvideNetworkCredentials(
+        _setupDialogUiStateStream.update {
+            if (it is SetupDialogUiState.Confirm) {
+                SetupDialogUiState.ProvideNetworkCredentials(
                     payload = payload
                 )
             } else {
@@ -59,53 +59,48 @@ class MainViewModel @Inject constructor() : ViewModel() {
         wifiCredentials: WifiCredentials
     ) {
         Timber.d("startConnectionToDevice - payload=${payload}, wifiCredentials=${wifiCredentials}")
-        _addDeviceDialogUiState.update {
-            if (it is AddDeviceDialogUiState.ProvideNetworkCredentials) {
-                AddDeviceDialogUiState.Connecting
+        _setupDialogUiStateStream.update {
+            if (it is SetupDialogUiState.ProvideNetworkCredentials) {
+                SetupDialogUiState.Connecting
             } else {
                 it
             }
         }
         viewModelScope.launch {
             delay(2000)
-            _addDeviceDialogUiState.value = AddDeviceDialogUiState.Success
+            _setupDialogUiStateStream.value = SetupDialogUiState.Success
         }
     }
 
     fun stopAddDevice() {
-        _addDeviceDialogUiState.update {
-            AddDeviceDialogUiState.Idle
+        _setupDialogUiStateStream.update {
+            SetupDialogUiState.Idle
         }
     }
 
 }
 
-sealed interface AddDeviceDialogUiState {
+sealed interface SetupDialogUiState {
 
-    object Idle : AddDeviceDialogUiState
+    object Idle : SetupDialogUiState
 
-    object Searching : AddDeviceDialogUiState
+    object Searching : SetupDialogUiState
 
     data class Confirm(
         val payload: MatterSetupPayload
-    ) : AddDeviceDialogUiState
+    ) : SetupDialogUiState
 
     data class ProvideNetworkCredentials(
         val payload: MatterSetupPayload
-    ) : AddDeviceDialogUiState
+    ) : SetupDialogUiState
 
-    object Connecting : AddDeviceDialogUiState
+    object Connecting : SetupDialogUiState
 
-    object Success : AddDeviceDialogUiState
+    object Success : SetupDialogUiState
 
-    object Failure : AddDeviceDialogUiState
+    object Failure : SetupDialogUiState
 
 }
-
-data class MainUiState(
-    val isAddingDevice: Boolean
-)
-
 
 
 
