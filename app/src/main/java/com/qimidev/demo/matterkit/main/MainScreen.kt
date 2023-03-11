@@ -9,6 +9,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,7 +31,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.airbnb.lottie.compose.LottieAnimation
@@ -44,8 +44,8 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.qimidev.demo.matterkit.R
 import com.qimidev.demo.matterkit.ui.DialogScaffold
+import com.qimidev.demo.matterkit.ui.DialogScaffoldProperties
 import com.qimidev.sdk.matter.core.model.MatterSetupPayload
-import com.qimidev.sdk.matter.core.model.WifiCredentials
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -54,13 +54,13 @@ fun MainRoute(
     modifier: Modifier = Modifier,
     viewModel: MainViewModel = hiltViewModel()
 ) {
-    val setupDialogUiState: SetupDialogUiState by viewModel
-        .setupDialogUiStateStream.collectAsState()
+    val setupDeviceUiState: SetupDeviceUiState by viewModel
+        .setupDeviceUiStateStream.collectAsState()
     Scaffold(
         modifier = modifier,
         topBar = {
             MainTopBar(
-                onAddDevice = viewModel::startAddDevice
+                startSetupDevice = viewModel::startSetupDevice
             )
         }
     ) {
@@ -72,11 +72,11 @@ fun MainRoute(
             )
         }
         SetupDeviceDialog(
-            uiState = setupDialogUiState,
-            onDismissRequest = viewModel::dismissSetupDialog,
-            onHandleSetupPayload = viewModel::handleSetupPayload,
-            onConfirmConnectionToDevice = viewModel::confirmConnectionToDevice,
-            onProvideNetworkCredentials = viewModel::startPairDevice
+            uiState = setupDeviceUiState,
+            onDecodeSetupPayload = viewModel::decodeSetupPayload,
+            onConfirmSetupDevice = viewModel::confirmSetupDevice,
+            onProvideNetworkCredentials = viewModel::provideNetworkCredentials,
+            onStopSetupDevice = viewModel::stopSetupDevice
         )
     }
 }
@@ -84,7 +84,7 @@ fun MainRoute(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainTopBar(
-    onAddDevice: () -> Unit,
+    startSetupDevice: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     MediumTopAppBar(
@@ -99,7 +99,7 @@ private fun MainTopBar(
         modifier = modifier,
         actions = {
             IconButton(
-                onClick = onAddDevice
+                onClick = startSetupDevice
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -117,387 +117,345 @@ private fun MainScreen(
 
 }
 
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 private fun SetupDeviceDialog(
-    uiState: SetupDialogUiState,
-    onDismissRequest: () -> Unit,
-    onHandleSetupPayload: (String) -> Unit,
-    onConfirmConnectionToDevice: (MatterSetupPayload) -> Unit,
-    onProvideNetworkCredentials: (MatterSetupPayload, WifiCredentials) -> Unit
+    uiState: SetupDeviceUiState,
+    onDecodeSetupPayload: (String) -> Unit,
+    onConfirmSetupDevice: (MatterSetupPayload) -> Unit,
+    onProvideNetworkCredentials: (MatterSetupPayload, String, String) -> Unit,
+    onStopSetupDevice: () -> Unit
 ) {
-    when (uiState) {
-        is SetupDialogUiState.Searching -> {
-            DialogScaffold(
-                onDismissRequest = onDismissRequest,
-                properties = DialogProperties(
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.title_add_device),
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    )
-                    Text(
-                        text = stringResource(id = R.string.hint_add_device),
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            textAlign = TextAlign.Center,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    )
-                    Surface(
-                        modifier = Modifier
-                            .padding(vertical = 8.dp)
-                            .fillMaxWidth()
-                            .heightIn(max = 180.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        CodeScanningBox(
-                            onResult = onHandleSetupPayload,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    Row(
+    if (uiState is SetupDeviceUiState.Closed) {
+        return
+    }
+    DialogScaffold(
+        onDismissRequest = onStopSetupDevice,
+        properties = DialogScaffoldProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            isCloseActionEnabled = uiState !is SetupDeviceUiState.Pairing
+        )
+    ) {
+        AnimatedContent(targetState = uiState) {
+            when (it) {
+                is SetupDeviceUiState.Scanning -> {
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_qr_code_24),
-                            contentDescription = null
-                        )
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = stringResource(id = R.string.title_scan_qr_code),
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            )
-                            Text(
-                                text = stringResource(id = R.string.content_scan_qr_code),
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = Color.Gray
-                                )
-                            )
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_signal_strength_24),
-                            contentDescription = null
-                        )
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = stringResource(id = R.string.title_hold_phone_near_device),
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            )
-                            Text(
-                                text = stringResource(id = R.string.content_hold_phone_near_device),
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = Color.Gray
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        is SetupDialogUiState.Confirm -> {
-            DialogScaffold(
-                onDismissRequest = onDismissRequest,
-                properties = DialogProperties(
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.title_confirm_add_device),
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    )
-                    val composition by rememberLottieComposition(
-                        LottieCompositionSpec.RawRes(R.raw.lottie_home)
-                    )
-                    LottieAnimation(
-                        composition = composition,
-                        modifier = Modifier
-                            .size(180.dp)
-                            .scale(1.25f),
-                        iterations = LottieConstants.IterateForever
-                    )
-                    Button(
-                        onClick = {
-                            onConfirmConnectionToDevice(uiState.payload)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Gray.copy(alpha = 0.15f),
-                            contentColor = LocalContentColor.current
-                        )
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = stringResource(id = R.string.label_confirm_add_device),
-                            style = LocalTextStyle.current.copy(
+                            text = stringResource(id = R.string.title_add_device),
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                            style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.SemiBold
                             )
                         )
+                        Text(
+                            text = stringResource(id = R.string.hint_add_device),
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                        Surface(
+                            modifier = Modifier
+                                .padding(vertical = 8.dp)
+                                .fillMaxWidth()
+                                .heightIn(max = 180.dp),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            CodeScanningBox(
+                                onResult = onDecodeSetupPayload,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_qr_code_24),
+                                contentDescription = null
+                            )
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(id = R.string.title_scan_qr_code),
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                                Text(
+                                    text = stringResource(id = R.string.content_scan_qr_code),
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = Color.Gray
+                                    )
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_signal_strength_24),
+                                contentDescription = null
+                            )
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(id = R.string.title_hold_phone_near_device),
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                                Text(
+                                    text = stringResource(id = R.string.content_hold_phone_near_device),
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = Color.Gray
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
-            }
-        }
-        is SetupDialogUiState.ProvideNetworkCredentials -> {
-            DialogScaffold(
-                onDismissRequest = onDismissRequest,
-                properties = DialogProperties(
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                var ssid: String by remember { mutableStateOf("") }
-                var password: String by remember { mutableStateOf("") }
-                var isPasswordVisible: Boolean by remember { mutableStateOf(false) }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.title_provide_network_credentials),
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.SemiBold
+                is SetupDeviceUiState.Ask -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.title_confirm_add_device),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.SemiBold
+                            )
                         )
-                    )
-                    OutlinedTextField(
-                        value = ssid,
-                        onValueChange = {
-                            ssid = it
-                        },
-                        singleLine = true,
-                        label = {
-                            Text(text = stringResource(id = R.string.label_input_ssid))
-                        },
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = {
-                            password = it
-                        },
-                        singleLine = true,
-                        label = {
-                            Text(text = stringResource(id = R.string.label_input_password))
-                        },
-                        visualTransformation = if (isPasswordVisible) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        trailingIcon = {
-                            val iconPainter: Painter = if (isPasswordVisible) {
-                                painterResource(id = R.drawable.ic_twotone_visibility_24)
+                        val composition by rememberLottieComposition(
+                            LottieCompositionSpec.RawRes(R.raw.lottie_home)
+                        )
+                        LottieAnimation(
+                            composition = composition,
+                            modifier = Modifier
+                                .size(180.dp)
+                                .scale(1.25f),
+                            iterations = LottieConstants.IterateForever
+                        )
+                        Button(
+                            onClick = {
+                                onConfirmSetupDevice(it.payload)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Gray.copy(alpha = 0.15f),
+                                contentColor = LocalContentColor.current
+                            )
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.label_confirm_add_device),
+                                style = LocalTextStyle.current.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            )
+                        }
+                    }
+                }
+                is SetupDeviceUiState.ProvideNetworkCredentials -> {
+                    var wifiSSID: String by remember { mutableStateOf("") }
+                    var wifiPassword: String by remember { mutableStateOf("") }
+                    var isPasswordVisible: Boolean by remember { mutableStateOf(false) }
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.title_provide_network_credentials),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                        OutlinedTextField(
+                            value = wifiSSID,
+                            onValueChange = {
+                                wifiSSID = it
+                            },
+                            singleLine = true,
+                            label = {
+                                Text(text = stringResource(id = R.string.label_input_ssid))
+                            },
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        OutlinedTextField(
+                            value = wifiPassword,
+                            onValueChange = {
+                                wifiPassword = it
+                            },
+                            singleLine = true,
+                            label = {
+                                Text(text = stringResource(id = R.string.label_input_password))
+                            },
+                            visualTransformation = if (isPasswordVisible) {
+                                VisualTransformation.None
                             } else {
-                                painterResource(id = R.drawable.ic_twotone_visibility_off_24)
-                            }
-                            IconButton(
-                                onClick = {
-                                    isPasswordVisible = !isPasswordVisible
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                val iconPainter: Painter = if (isPasswordVisible) {
+                                    painterResource(id = R.drawable.ic_twotone_visibility_24)
+                                } else {
+                                    painterResource(id = R.drawable.ic_twotone_visibility_off_24)
                                 }
-                            ){
-                                Icon(
-                                    painter = iconPainter,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
+                                IconButton(
+                                    onClick = {
+                                        isPasswordVisible = !isPasswordVisible
+                                    }
+                                ){
+                                    Icon(
+                                        painter = iconPainter,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        Button(
+                            onClick = {
+                                onProvideNetworkCredentials(it.payload, wifiSSID, wifiPassword)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Gray.copy(alpha = 0.15f),
+                                contentColor = LocalContentColor.current
+                            )
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.label_start_pair_device),
+                                style = LocalTextStyle.current.copy(
+                                    fontWeight = FontWeight.SemiBold
                                 )
-                            }
-                        },
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    Button(
-                        onClick = {
-                            onProvideNetworkCredentials(
-                                uiState.payload,
-                                WifiCredentials(
-                                    ssid = ssid,
-                                    password = password
+                            )
+                        }
+                    }
+                }
+                is SetupDeviceUiState.Pairing -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.title_connecting_device),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                        Text(
+                            text = stringResource(id = R.string.hint_connecting_device),
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                        val composition by rememberLottieComposition(
+                            LottieCompositionSpec.RawRes(R.raw.lottie_processing)
+                        )
+                        LottieAnimation(
+                            composition = composition,
+                            modifier = Modifier.size(180.dp),
+                            iterations = LottieConstants.IterateForever
+                        )
+                    }
+                }
+                is SetupDeviceUiState.Success -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.title_added_to_my_device),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                        val composition by rememberLottieComposition(
+                            LottieCompositionSpec.RawRes(R.raw.lottie_success)
+                        )
+                        LottieAnimation(
+                            composition = composition,
+                            modifier = Modifier.size(128.dp),
+                            iterations = LottieConstants.IterateForever
+                        )
+                        Button(
+                            onClick = onStopSetupDevice,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Gray.copy(alpha = 0.15f),
+                                contentColor = LocalContentColor.current
+                            )
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.close),
+                                style = LocalTextStyle.current.copy(
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             )
-                        },
+                        }
+                    }
+                }
+                is SetupDeviceUiState.Failure -> {
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Gray.copy(alpha = 0.15f),
-                            contentColor = LocalContentColor.current
-                        )
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = stringResource(id = R.string.label_start_pair_device),
-                            style = LocalTextStyle.current.copy(
+                            text = stringResource(id = R.string.title_failed_to_add_device),
+                            style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.SemiBold
                             )
                         )
-                    }
-                }
-            }
-        }
-        is SetupDialogUiState.Connecting -> {
-            DialogScaffold(
-                onDismissRequest = {
-                    // TODO
-                },
-                properties = DialogProperties(
-                    dismissOnBackPress = false,
-                    dismissOnClickOutside = false
-                ),
-                isShowCloseAction = false
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.title_connecting_device),
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.SemiBold
+                        val composition by rememberLottieComposition(
+                            LottieCompositionSpec.RawRes(R.raw.lottie_failure)
                         )
-                    )
-                    Text(
-                        text = stringResource(id = R.string.hint_connecting_device),
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            textAlign = TextAlign.Center,
-                            fontWeight = FontWeight.SemiBold
+                        LottieAnimation(
+                            composition = composition,
+                            modifier = Modifier.size(128.dp),
+                            iterations = LottieConstants.IterateForever
                         )
-                    )
-                    val composition by rememberLottieComposition(
-                        LottieCompositionSpec.RawRes(R.raw.lottie_processing)
-                    )
-                    LottieAnimation(
-                        composition = composition,
-                        modifier = Modifier.size(180.dp),
-                        iterations = LottieConstants.IterateForever
-                    )
-                }
-            }
-        }
-        is SetupDialogUiState.Success -> {
-            DialogScaffold(
-                onDismissRequest = onDismissRequest,
-                properties = DialogProperties(
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.title_added_to_my_device),
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    )
-                    val composition by rememberLottieComposition(
-                        LottieCompositionSpec.RawRes(R.raw.lottie_success)
-                    )
-                    LottieAnimation(
-                        composition = composition,
-                        modifier = Modifier.size(128.dp),
-                        iterations = LottieConstants.IterateForever
-                    )
-                    Button(
-                        onClick = onDismissRequest,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Gray.copy(alpha = 0.15f),
-                            contentColor = LocalContentColor.current
-                        )
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.close),
-                            style = LocalTextStyle.current.copy(
-                                fontWeight = FontWeight.SemiBold
+                        Button(
+                            onClick = onStopSetupDevice,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Gray.copy(alpha = 0.15f),
+                                contentColor = LocalContentColor.current
                             )
-                        )
-                    }
-                }
-            }
-        }
-        is SetupDialogUiState.Failure -> {
-            DialogScaffold(
-                onDismissRequest = onDismissRequest,
-                properties = DialogProperties(
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.title_failed_to_add_device),
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    )
-                    val composition by rememberLottieComposition(
-                        LottieCompositionSpec.RawRes(R.raw.lottie_failure)
-                    )
-                    LottieAnimation(
-                        composition = composition,
-                        modifier = Modifier.size(128.dp),
-                        iterations = LottieConstants.IterateForever
-                    )
-                    Button(
-                        onClick = onDismissRequest,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Gray.copy(alpha = 0.15f),
-                            contentColor = LocalContentColor.current
-                        )
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.close),
-                            style = LocalTextStyle.current.copy(
-                                fontWeight = FontWeight.SemiBold
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.close),
+                                style = LocalTextStyle.current.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             )
-                        )
+                        }
                     }
                 }
+                else -> Unit
             }
         }
-        else -> Unit
     }
 }
 

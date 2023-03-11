@@ -16,7 +16,6 @@ import com.qimidev.sdk.matter.core.database.MatterDatabase
 import com.qimidev.sdk.matter.core.database.dao.MatterDeviceDao
 import com.qimidev.sdk.matter.core.database.model.MatterDeviceEntity
 import com.qimidev.sdk.matter.core.model.MatterSetupPayload
-import com.qimidev.sdk.matter.core.model.WifiCredentials
 import com.qimidev.sdk.matter.exception.MatterException
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
@@ -25,7 +24,6 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
 import java.util.*
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 object Matter {
 

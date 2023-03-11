@@ -1,53 +1,46 @@
 package com.qimidev.demo.matterkit.main
 
+import android.net.wifi.WifiSsid
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qimidev.sdk.matter.Matter
 import com.qimidev.sdk.matter.core.model.MatterSetupPayload
-import com.qimidev.sdk.matter.core.model.WifiCredentials
 import com.qimidev.sdk.matter.exception.MatterException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor() : ViewModel() {
 
-    private val _setupDialogUiStateStream: MutableStateFlow<SetupDialogUiState> =
-        MutableStateFlow(SetupDialogUiState.Idle)
+    private val _setupDeviceUiStateStream: MutableStateFlow<SetupDeviceUiState> =
+        MutableStateFlow(SetupDeviceUiState.Closed)
 
-    val setupDialogUiStateStream: StateFlow<SetupDialogUiState> =
-        _setupDialogUiStateStream.asStateFlow()
+    val setupDeviceUiStateStream: StateFlow<SetupDeviceUiState> =
+        _setupDeviceUiStateStream.asStateFlow()
 
-    private var pairDeviceJob: Job? = null
-
-    fun startAddDevice() {
-        _setupDialogUiStateStream.update {
-            if (it is SetupDialogUiState.Idle) SetupDialogUiState.Searching else it
+    fun startSetupDevice() {
+        _setupDeviceUiStateStream.update {
+            if (it is SetupDeviceUiState.Closed) SetupDeviceUiState.Scanning else it
         }
     }
 
-    fun handleSetupPayload(payload: String) {
-        _setupDialogUiStateStream.update {
-            val payloadResult: Result<MatterSetupPayload> = Matter.decodeSetupPayload(payload)
-            if (it is SetupDialogUiState.Searching && payloadResult.isSuccess) {
-                SetupDialogUiState.Confirm(
-                    payload = payloadResult.getOrThrow()
+    fun decodeSetupPayload(payloadContent: String) {
+        Matter.decodeSetupPayload(payloadContent)
+            .onSuccess {
+                _setupDeviceUiStateStream.compareAndSet(
+                    expect = SetupDeviceUiState.Scanning,
+                    update = SetupDeviceUiState.Ask(payload = it)
                 )
-            } else {
-                it
             }
-        }
     }
 
-    fun confirmConnectionToDevice(payload: MatterSetupPayload) {
-        _setupDialogUiStateStream.update {
-            if (it is SetupDialogUiState.Confirm) {
-                SetupDialogUiState.ProvideNetworkCredentials(
+    fun confirmSetupDevice(payload: MatterSetupPayload) {
+        _setupDeviceUiStateStream.update {
+            if (it is SetupDeviceUiState.Ask) {
+                SetupDeviceUiState.ProvideNetworkCredentials(
                     payload = payload
                 )
             } else {
@@ -56,63 +49,71 @@ class MainViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    fun startPairDevice(
+    fun provideNetworkCredentials(
         payload: MatterSetupPayload,
-        wifiCredentials: WifiCredentials
+        wifiSSID: String,
+        wifiPassword: String
     ) {
-        _setupDialogUiStateStream.update {
-            if (it is SetupDialogUiState.ProvideNetworkCredentials) {
-                SetupDialogUiState.Connecting
+        _setupDeviceUiStateStream.update {
+            if (it is SetupDeviceUiState.ProvideNetworkCredentials) {
+                SetupDeviceUiState.Pairing
             } else {
-                it
+                return
             }
         }
-        pairDeviceJob = viewModelScope.launch {
+        startPairDevice(payload, wifiSSID, wifiPassword)
+    }
+
+    private fun startPairDevice(
+        payload: MatterSetupPayload,
+        wifiSSID: String,
+        wifiPassword: String
+    ) {
+        viewModelScope.launch {
             val pairException: MatterException? = Matter.pairDeviceWithBle(
                 discriminator = payload.discriminator,
                 setupPinCode = payload.passcode,
-                ssid = wifiCredentials.ssid,
-                password = wifiCredentials.password
+                ssid = wifiSSID,
+                password = wifiPassword
             )
-            Timber.d("pairDeviceWithBle: $pairException")
             if (pairException == null) {
-                _setupDialogUiStateStream.value = SetupDialogUiState.Success
+                _setupDeviceUiStateStream.value = SetupDeviceUiState.Success
             } else {
-                _setupDialogUiStateStream.value = SetupDialogUiState.Failure
+                _setupDeviceUiStateStream.value = SetupDeviceUiState.Failure
             }
         }
     }
 
-    fun dismissSetupDialog() {
-        _setupDialogUiStateStream.update {
+    fun stopSetupDevice() {
+        _setupDeviceUiStateStream.update {
             when (it) {
-                is SetupDialogUiState.Connecting -> return
-                else -> SetupDialogUiState.Idle
+                is SetupDeviceUiState.Pairing -> return
+                else -> SetupDeviceUiState.Closed
             }
         }
     }
 
 }
 
-sealed interface SetupDialogUiState {
+sealed interface SetupDeviceUiState {
 
-    object Idle : SetupDialogUiState
+    object Closed : SetupDeviceUiState
 
-    object Searching : SetupDialogUiState
+    object Scanning : SetupDeviceUiState
 
-    data class Confirm(
+    data class Ask(
         val payload: MatterSetupPayload
-    ) : SetupDialogUiState
+    ) : SetupDeviceUiState
 
     data class ProvideNetworkCredentials(
         val payload: MatterSetupPayload
-    ) : SetupDialogUiState
+    ) : SetupDeviceUiState
 
-    object Connecting : SetupDialogUiState
+    object Pairing : SetupDeviceUiState
 
-    object Success : SetupDialogUiState
+    object Success : SetupDeviceUiState
 
-    object Failure : SetupDialogUiState
+    object Failure : SetupDeviceUiState
 
 }
 
