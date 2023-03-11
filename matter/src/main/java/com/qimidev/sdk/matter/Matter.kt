@@ -15,7 +15,8 @@ import chip.setuppayload.SetupPayloadParser
 import com.qimidev.sdk.matter.core.database.MatterDatabase
 import com.qimidev.sdk.matter.core.database.dao.MatterDeviceDao
 import com.qimidev.sdk.matter.core.database.model.MatterDeviceEntity
-import com.qimidev.sdk.matter.core.model.MatterSetupPayload
+import com.qimidev.sdk.matter.core.model.BaseSetupPayload
+import com.qimidev.sdk.matter.core.model.BluetoothSetupPayload
 import com.qimidev.sdk.matter.exception.MatterException
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
@@ -67,60 +68,34 @@ object Matter {
         )
     }
 
-    fun decodeSetupPayload(payload: String): Result<MatterSetupPayload> {
+    fun parseSetupPayload(payloadContent: String): Result<BaseSetupPayload> {
         return runCatching {
-            SetupPayloadParser().parseQrCode(payload).run {
-                MatterSetupPayload(
-                    version = version,
-                    vendorId = vendorId,
-                    productId = productId,
+            SetupPayloadParser().parseQrCode(payloadContent).run {
+                BaseSetupPayload(
                     discriminator = discriminator,
-                    passcode = setupPinCode
+                    setupPinCode = setupPinCode
                 )
             }
         }
     }
 
     @SuppressLint("MissingPermission")
-    suspend fun pairDeviceWithBle(
-        discriminator: Int,
-        setupPinCode: Long,
-        ssid: String,
-        password: String
-    ): MatterException? {
-        if (!bluetoothAdapter.isEnabled) {
-            return MatterException.BLUETOOTH_NOT_TURNED_ON
-        }
-        val bluetoothLeScanner: BluetoothLeScanner? = bluetoothAdapter.bluetoothLeScanner
-        if (bluetoothLeScanner == null) {
-            return MatterException.NO_BLUETOOTH_SCANNER_FOUND
-        }
-        val bluetoothDevice: BluetoothDevice = withTimeoutOrNull(10_000) {
-            discoverBluetoothDevice(discriminator).first()
-        } ?: return MatterException.DEVICE_NOT_FOUND
-        val (connectionId, bluetoothGatt) = withTimeoutOrNull(10_000) {
-            connectToBluetoothDevice(bluetoothDevice)
-        } ?: return MatterException.FAILED_TO_CONNECT_TO_DEVICE
-        return withContext(NonCancellable) {
-            pairDeviceByBle(
-                gatt = bluetoothGatt,
-                connectionId = connectionId,
-                setupPinCode = setupPinCode,
-                ssid = ssid,
-                password = password
-            )
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun discoverBluetoothDevice(discriminator: Int): Flow<BluetoothDevice> {
+    fun discoverBluetoothDevice(
+        baseSetupPayload: BaseSetupPayload
+    ): Flow<BluetoothSetupPayload> {
         return callbackFlow {
             val scanCallback: ScanCallback = object : ScanCallback() {
                 override fun onScanResult(callbackType: Int, result: ScanResult) {
-                    trySend(result.device)
+                    trySend(
+                        BluetoothSetupPayload(
+                            discriminator = baseSetupPayload.discriminator,
+                            setupPinCode = baseSetupPayload.setupPinCode,
+                            bluetoothDevice = result.device
+                        )
+                    )
                 }
             }
-            val serviceData: ByteArray = getServiceData(discriminator)
+            val serviceData: ByteArray = getServiceData(baseSetupPayload.discriminator)
             val scanFilter: ScanFilter = ScanFilter.Builder()
                 .setServiceData(ParcelUuid(UUID.fromString(CHIP_UUID)), serviceData)
                 .build()
@@ -135,33 +110,79 @@ object Matter {
     }
 
     @SuppressLint("MissingPermission")
-    private suspend fun connectToBluetoothDevice(device: BluetoothDevice): Pair<Int, BluetoothGatt>? {
-        return suspendCancellableCoroutine { continuation ->
-            var connectionId: Int = 0
-            val bluetoothGattCallback: BluetoothGattCallback = getWrappedCallback {
-                if (continuation.isActive) {
-                    continuation.resume(connectionId to it)
+    suspend fun pairDevice(
+        setupPayload: BluetoothSetupPayload,
+        wifiSSID: String,
+        wifiPassword: String
+    ): MatterException? {
+        if (!bluetoothAdapter.isEnabled) {
+            return MatterException.BLUETOOTH_NOT_TURNED_ON
+        }
+        val bluetoothLeScanner: BluetoothLeScanner? = bluetoothAdapter.bluetoothLeScanner
+        if (bluetoothLeScanner == null) {
+            return MatterException.NO_BLUETOOTH_SCANNER_FOUND
+        }
+        val (connectionId, bluetoothGatt) = withTimeoutOrNull(10_000) {
+            suspendCancellableCoroutine<Pair<Int, BluetoothGatt>> { continuation ->
+                var connectionId: Int = 0
+                val bluetoothGattCallback: BluetoothGattCallback = getWrappedCallback {
+                    if (continuation.isActive) {
+                        continuation.resume(connectionId to it)
+                    }
+                }
+                val bluetoothGatt: BluetoothGatt = setupPayload.bluetoothDevice.connectGatt(
+                    application, false, bluetoothGattCallback
+                )
+                val bleManager: BleManager = androidChipPlatform.bleManager
+                connectionId = bleManager.addConnection(bluetoothGatt)
+                bleManager.setBleCallback(object : BleCallback {
+
+                    override fun onCloseBleComplete(connId: Int) {
+                        // TODO
+                    }
+
+                    override fun onNotifyChipConnectionClosed(connId: Int) {
+                        bluetoothGatt.close()
+                    }
+
+                })
+                continuation.invokeOnCancellation {
+                    bluetoothGatt.disconnect()
                 }
             }
-            val bluetoothGatt: BluetoothGatt = device.connectGatt(
-                application, false, bluetoothGattCallback
-            )
-            val bleManager: BleManager = androidChipPlatform.bleManager
-            connectionId = bleManager.addConnection(bluetoothGatt)
-            bleManager.setBleCallback(object : BleCallback {
-
-                override fun onCloseBleComplete(connId: Int) {
-                    // TODO
-                }
-
-                override fun onNotifyChipConnectionClosed(connId: Int) {
-                    bluetoothGatt.close()
-                }
-
-            })
-            continuation.invokeOnCancellation {
-                bluetoothGatt.disconnect()
-            }
+        } ?: return MatterException.FAILED_TO_CONNECT_TO_DEVICE
+        return withContext(NonCancellable) {
+            callbackFlow<MatterException?> {
+                val deviceId: Long = matterDeviceDao.insertMatterDevice(MatterDeviceEntity())
+                chipDeviceController.setCompletionListener(
+                    object : PairCompletionListener() {
+                        override fun onCommissioningComplete(nodeId: Long, errorCode: Int) {
+                            // TODO release bluetooth device
+                            chipDeviceController.close()
+                            launch(start = CoroutineStart.UNDISPATCHED) {
+                                matterDeviceDao.updateMatterDevice(
+                                    matterDevice = MatterDeviceEntity(
+                                        deviceId = deviceId,
+                                        isPaired = true
+                                    )
+                                )
+                                if (errorCode == 0) {
+                                    send(null)
+                                } else {
+                                    send(MatterException.PAIRING_DEVICE_FAILED)
+                                }
+                            }
+                        }
+                    }
+                )
+                val networkCredentials: NetworkCredentials = NetworkCredentials.forWiFi(
+                    NetworkCredentials.WiFiCredentials(wifiSSID, wifiPassword)
+                )
+                chipDeviceController.pairDevice(
+                    bluetoothGatt, connectionId, deviceId, setupPayload.setupPinCode, networkCredentials
+                )
+                awaitClose()
+            }.first()
         }
     }
 
@@ -247,46 +268,6 @@ object Matter {
             }
 
         }
-    }
-
-    private suspend fun pairDeviceByBle(
-        gatt: BluetoothGatt,
-        connectionId: Int,
-        setupPinCode: Long,
-        ssid: String,
-        password: String
-    ): MatterException? {
-        return callbackFlow<MatterException?> {
-            val deviceId: Long = matterDeviceDao.insertMatterDevice(MatterDeviceEntity())
-            chipDeviceController.setCompletionListener(
-                object : PairCompletionListener() {
-                    override fun onCommissioningComplete(nodeId: Long, errorCode: Int) {
-                        // TODO release bluetooth device
-                        chipDeviceController.close()
-                        launch(start = CoroutineStart.UNDISPATCHED) {
-                            matterDeviceDao.updateMatterDevice(
-                                matterDevice = MatterDeviceEntity(
-                                    deviceId = deviceId,
-                                    isPaired = true
-                                )
-                            )
-                            if (errorCode == 0) {
-                                send(null)
-                            } else {
-                                send(MatterException.PAIRING_DEVICE_FAILED)
-                            }
-                        }
-                    }
-                }
-            )
-            val networkCredentials: NetworkCredentials = NetworkCredentials.forWiFi(
-                NetworkCredentials.WiFiCredentials(ssid, password)
-            )
-            chipDeviceController.pairDevice(
-                gatt, connectionId, deviceId, setupPinCode, networkCredentials
-            )
-            awaitClose()
-        }.first()
     }
 
     private fun getServiceData(discriminator: Int): ByteArray {

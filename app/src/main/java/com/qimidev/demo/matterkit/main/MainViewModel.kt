@@ -1,15 +1,15 @@
 package com.qimidev.demo.matterkit.main
 
-import android.net.wifi.WifiSsid
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qimidev.sdk.matter.Matter
-import com.qimidev.sdk.matter.core.model.MatterSetupPayload
+import com.qimidev.sdk.matter.core.model.BaseSetupPayload
+import com.qimidev.sdk.matter.core.model.BluetoothSetupPayload
 import com.qimidev.sdk.matter.exception.MatterException
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @HiltViewModel
@@ -27,8 +27,8 @@ class MainViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    fun decodeSetupPayload(payloadContent: String) {
-        Matter.decodeSetupPayload(payloadContent)
+    fun parseSetupPayload(payloadContent: String) {
+        Matter.parseSetupPayload(payloadContent)
             .onSuccess {
                 _setupDeviceUiStateStream.compareAndSet(
                     expect = SetupDeviceUiState.Scanning,
@@ -37,7 +37,7 @@ class MainViewModel @Inject constructor() : ViewModel() {
             }
     }
 
-    fun confirmSetupDevice(payload: MatterSetupPayload) {
+    fun confirmSetupDevice(payload: BaseSetupPayload) {
         _setupDeviceUiStateStream.update {
             if (it is SetupDeviceUiState.Ask) {
                 SetupDeviceUiState.ProvideNetworkCredentials(
@@ -50,7 +50,7 @@ class MainViewModel @Inject constructor() : ViewModel() {
     }
 
     fun provideNetworkCredentials(
-        payload: MatterSetupPayload,
+        payload: BaseSetupPayload,
         wifiSSID: String,
         wifiPassword: String
     ) {
@@ -65,16 +65,22 @@ class MainViewModel @Inject constructor() : ViewModel() {
     }
 
     private fun startPairDevice(
-        payload: MatterSetupPayload,
+        payload: BaseSetupPayload,
         wifiSSID: String,
         wifiPassword: String
     ) {
         viewModelScope.launch {
-            val pairException: MatterException? = Matter.pairDeviceWithBle(
-                discriminator = payload.discriminator,
-                setupPinCode = payload.passcode,
-                ssid = wifiSSID,
-                password = wifiPassword
+            val bluetoothSetupPayload: BluetoothSetupPayload? = withTimeoutOrNull(10_000) {
+                Matter.discoverBluetoothDevice(payload).first()
+            }
+            if (bluetoothSetupPayload == null) {
+                _setupDeviceUiStateStream.value = SetupDeviceUiState.Failure
+                return@launch
+            }
+            val pairException: MatterException? = Matter.pairDevice(
+                setupPayload = bluetoothSetupPayload,
+                wifiSSID = wifiSSID,
+                wifiPassword = wifiPassword
             )
             if (pairException == null) {
                 _setupDeviceUiStateStream.value = SetupDeviceUiState.Success
@@ -102,11 +108,11 @@ sealed interface SetupDeviceUiState {
     object Scanning : SetupDeviceUiState
 
     data class Ask(
-        val payload: MatterSetupPayload
+        val payload: BaseSetupPayload
     ) : SetupDeviceUiState
 
     data class ProvideNetworkCredentials(
-        val payload: MatterSetupPayload
+        val payload: BaseSetupPayload
     ) : SetupDeviceUiState
 
     object Pairing : SetupDeviceUiState

@@ -45,7 +45,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.qimidev.demo.matterkit.R
 import com.qimidev.demo.matterkit.ui.DialogScaffold
 import com.qimidev.demo.matterkit.ui.DialogScaffoldProperties
-import com.qimidev.sdk.matter.core.model.MatterSetupPayload
+import com.qimidev.sdk.matter.core.model.BaseSetupPayload
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -73,7 +73,7 @@ fun MainRoute(
         }
         SetupDeviceDialog(
             uiState = setupDeviceUiState,
-            onDecodeSetupPayload = viewModel::decodeSetupPayload,
+            onParseSetupPayload = viewModel::parseSetupPayload,
             onConfirmSetupDevice = viewModel::confirmSetupDevice,
             onProvideNetworkCredentials = viewModel::provideNetworkCredentials,
             onStopSetupDevice = viewModel::stopSetupDevice
@@ -121,9 +121,9 @@ private fun MainScreen(
 @Composable
 private fun SetupDeviceDialog(
     uiState: SetupDeviceUiState,
-    onDecodeSetupPayload: (String) -> Unit,
-    onConfirmSetupDevice: (MatterSetupPayload) -> Unit,
-    onProvideNetworkCredentials: (MatterSetupPayload, String, String) -> Unit,
+    onParseSetupPayload: (String) -> Unit,
+    onConfirmSetupDevice: (BaseSetupPayload) -> Unit,
+    onProvideNetworkCredentials: (BaseSetupPayload, String, String) -> Unit,
     onStopSetupDevice: () -> Unit
 ) {
     if (uiState is SetupDeviceUiState.Closed) {
@@ -167,7 +167,7 @@ private fun SetupDeviceDialog(
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             CodeScanningBox(
-                                onResult = onDecodeSetupPayload,
+                                onResult = onParseSetupPayload,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
