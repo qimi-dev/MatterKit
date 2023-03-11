@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.qimidev.sdk.matter.Matter
 import com.qimidev.sdk.matter.core.model.MatterSetupPayload
 import com.qimidev.sdk.matter.core.model.WifiCredentials
+import com.qimidev.sdk.matter.exception.MatterException
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -21,6 +23,8 @@ class MainViewModel @Inject constructor() : ViewModel() {
     val setupDialogUiStateStream: StateFlow<SetupDialogUiState> =
         _setupDialogUiStateStream.asStateFlow()
 
+    private var pairDeviceJob: Job? = null
+
     fun startAddDevice() {
         _setupDialogUiStateStream.update {
             if (it is SetupDialogUiState.Idle) SetupDialogUiState.Searching else it
@@ -28,7 +32,6 @@ class MainViewModel @Inject constructor() : ViewModel() {
     }
 
     fun handleSetupPayload(payload: String) {
-        Timber.d("handleSetupPayload - payload=${payload}")
         _setupDialogUiStateStream.update {
             val payloadResult: Result<MatterSetupPayload> = Matter.decodeSetupPayload(payload)
             if (it is SetupDialogUiState.Searching && payloadResult.isSuccess) {
@@ -42,7 +45,6 @@ class MainViewModel @Inject constructor() : ViewModel() {
     }
 
     fun confirmConnectionToDevice(payload: MatterSetupPayload) {
-        Timber.d("confirmConnectionToDevice - payload=${payload}")
         _setupDialogUiStateStream.update {
             if (it is SetupDialogUiState.Confirm) {
                 SetupDialogUiState.ProvideNetworkCredentials(
@@ -54,11 +56,10 @@ class MainViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    fun startConnectionToDevice(
+    fun startPairDevice(
         payload: MatterSetupPayload,
         wifiCredentials: WifiCredentials
     ) {
-        Timber.d("startConnectionToDevice - payload=${payload}, wifiCredentials=${wifiCredentials}")
         _setupDialogUiStateStream.update {
             if (it is SetupDialogUiState.ProvideNetworkCredentials) {
                 SetupDialogUiState.Connecting
@@ -66,15 +67,28 @@ class MainViewModel @Inject constructor() : ViewModel() {
                 it
             }
         }
-        viewModelScope.launch {
-            delay(2000)
-            _setupDialogUiStateStream.value = SetupDialogUiState.Success
+        pairDeviceJob = viewModelScope.launch {
+            val pairException: MatterException? = Matter.pairDeviceWithBle(
+                discriminator = payload.discriminator,
+                setupPinCode = payload.passcode,
+                ssid = wifiCredentials.ssid,
+                password = wifiCredentials.password
+            )
+            Timber.d("pairDeviceWithBle: $pairException")
+            if (pairException == null) {
+                _setupDialogUiStateStream.value = SetupDialogUiState.Success
+            } else {
+                _setupDialogUiStateStream.value = SetupDialogUiState.Failure
+            }
         }
     }
 
-    fun stopAddDevice() {
+    fun dismissSetupDialog() {
         _setupDialogUiStateStream.update {
-            SetupDialogUiState.Idle
+            when (it) {
+                is SetupDialogUiState.Connecting -> return
+                else -> SetupDialogUiState.Idle
+            }
         }
     }
 

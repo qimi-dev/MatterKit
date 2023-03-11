@@ -8,6 +8,7 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -48,7 +49,6 @@ import com.qimidev.sdk.matter.core.model.WifiCredentials
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainRoute(
     modifier: Modifier = Modifier,
@@ -71,12 +71,12 @@ fun MainRoute(
                 modifier = Modifier.fillMaxSize()
             )
         }
-        AddDeviceDialog(
+        SetupDeviceDialog(
             uiState = setupDialogUiState,
-            onStopAddDevice = viewModel::stopAddDevice,
+            onDismissRequest = viewModel::dismissSetupDialog,
             onHandleSetupPayload = viewModel::handleSetupPayload,
             onConfirmConnectionToDevice = viewModel::confirmConnectionToDevice,
-            onProvideNetworkCredentials = viewModel::startConnectionToDevice
+            onProvideNetworkCredentials = viewModel::startPairDevice
         )
     }
 }
@@ -118,9 +118,9 @@ private fun MainScreen(
 }
 
 @Composable
-private fun AddDeviceDialog(
+private fun SetupDeviceDialog(
     uiState: SetupDialogUiState,
-    onStopAddDevice: () -> Unit,
+    onDismissRequest: () -> Unit,
     onHandleSetupPayload: (String) -> Unit,
     onConfirmConnectionToDevice: (MatterSetupPayload) -> Unit,
     onProvideNetworkCredentials: (MatterSetupPayload, WifiCredentials) -> Unit
@@ -128,7 +128,7 @@ private fun AddDeviceDialog(
     when (uiState) {
         is SetupDialogUiState.Searching -> {
             DialogScaffold(
-                onDismissRequest = onStopAddDevice,
+                onDismissRequest = onDismissRequest,
                 properties = DialogProperties(
                     dismissOnBackPress = true,
                     dismissOnClickOutside = false
@@ -222,7 +222,7 @@ private fun AddDeviceDialog(
         }
         is SetupDialogUiState.Confirm -> {
             DialogScaffold(
-                onDismissRequest = onStopAddDevice,
+                onDismissRequest = onDismissRequest,
                 properties = DialogProperties(
                     dismissOnBackPress = true,
                     dismissOnClickOutside = false
@@ -272,7 +272,7 @@ private fun AddDeviceDialog(
         }
         is SetupDialogUiState.ProvideNetworkCredentials -> {
             DialogScaffold(
-                onDismissRequest = onStopAddDevice,
+                onDismissRequest = onDismissRequest,
                 properties = DialogProperties(
                     dismissOnBackPress = true,
                     dismissOnClickOutside = false
@@ -366,7 +366,9 @@ private fun AddDeviceDialog(
         }
         is SetupDialogUiState.Connecting -> {
             DialogScaffold(
-                onDismissRequest = onStopAddDevice,
+                onDismissRequest = {
+                    // TODO
+                },
                 properties = DialogProperties(
                     dismissOnBackPress = false,
                     dismissOnClickOutside = false
@@ -404,7 +406,96 @@ private fun AddDeviceDialog(
             }
         }
         is SetupDialogUiState.Success -> {
-
+            DialogScaffold(
+                onDismissRequest = onDismissRequest,
+                properties = DialogProperties(
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = false
+                )
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.title_added_to_my_device),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    val composition by rememberLottieComposition(
+                        LottieCompositionSpec.RawRes(R.raw.lottie_success)
+                    )
+                    LottieAnimation(
+                        composition = composition,
+                        modifier = Modifier.size(128.dp),
+                        iterations = LottieConstants.IterateForever
+                    )
+                    Button(
+                        onClick = onDismissRequest,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Gray.copy(alpha = 0.15f),
+                            contentColor = LocalContentColor.current
+                        )
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.close),
+                            style = LocalTextStyle.current.copy(
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        is SetupDialogUiState.Failure -> {
+            DialogScaffold(
+                onDismissRequest = onDismissRequest,
+                properties = DialogProperties(
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = false
+                )
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.title_failed_to_add_device),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    val composition by rememberLottieComposition(
+                        LottieCompositionSpec.RawRes(R.raw.lottie_failure)
+                    )
+                    LottieAnimation(
+                        composition = composition,
+                        modifier = Modifier.size(128.dp),
+                        iterations = LottieConstants.IterateForever
+                    )
+                    Button(
+                        onClick = onDismissRequest,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Gray.copy(alpha = 0.15f),
+                            contentColor = LocalContentColor.current
+                        )
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.close),
+                            style = LocalTextStyle.current.copy(
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
+                }
+            }
         }
         else -> Unit
     }
