@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "MatterKit"
 include(":app")
+include(":core-ui")

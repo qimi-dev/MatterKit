@@ -32,6 +32,18 @@ gradlePlugin {
             id = "matterkit.android.application.compose"
             implementationClass = "AndroidApplicationComposeConventionPlugin"
         }
+        register("androidLibrary") {
+            id = "matterkit.android.library"
+            implementationClass = "AndroidLibraryConventionPlugin"
+        }
+        register("androidLibraryCompose") {
+            id = "matterkit.android.library.compose"
+            implementationClass = "AndroidLibraryComposeConventionPlugin"
+        }
+        register("androidHilt") {
+            id = "matterkit.android.hilt"
+            implementationClass = "AndroidHiltConventionPlugin"
+        }
     }
 }
 

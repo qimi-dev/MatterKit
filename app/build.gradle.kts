@@ -1,6 +1,7 @@
 plugins {
     id("matterkit.android.application")
     id("matterkit.android.application.compose")
+    id("matterkit.android.hilt")
 }
 
 android {
@@ -29,7 +30,9 @@ android {
 }
 
 dependencies {
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.compose.material3)
+    implementation(libs.accompanist.systemuicontroller)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.hilt.navigation.compose)
+
+    implementation(project(":core-ui"))
 }
