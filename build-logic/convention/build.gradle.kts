@@ -44,6 +44,10 @@ gradlePlugin {
             id = "matterkit.android.hilt"
             implementationClass = "AndroidHiltConventionPlugin"
         }
+        register("androidFeature") {
+            id = "matterkit.android.feature"
+            implementationClass = "AndroidFeatureConventionPlugin"
+        }
     }
 }
 

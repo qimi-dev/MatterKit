@@ -1,4 +1,4 @@
-package com.qimidev.app.matterkit.ui.theme
+package com.qimidev.app.matterkit.core.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
@@ -17,5 +17,5 @@ val LightOnSecondary = Color(0xFF4B5461)
 val LightTertiary = Color(0xFF91634B)
 val LightBackground = Color(0xFFF5F5F7)
 val LightOnBackground = Color(0xFF1D1D1F)
-val LightSurface = Color(0xFFF5F5F7)
-val LightOnSurface = Color(0xFF1D1D1F)
+val LightSurface = Color(0xFFFFFFFF)
+val LightOnSurface = Color(0xFF000000)

@@ -3,7 +3,10 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.qimidev.app.matterkit.configureKotlinAndroid
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.kotlin.dsl.configure
+import org.gradle.kotlin.dsl.dependencies
+import org.gradle.kotlin.dsl.getByType
 
 class AndroidApplicationConventionPlugin : Plugin<Project> {
 
@@ -13,10 +16,14 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                 apply("com.android.application")
                 apply("org.jetbrains.kotlin.android")
             }
-
             extensions.configure<ApplicationExtension> {
                 configureKotlinAndroid(this)
                 defaultConfig.targetSdk = 33
+            }
+            val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
+            dependencies {
+                add("implementation", project(":feature-main"))
+                add("implementation", project(":core-ui"))
             }
         }
     }
