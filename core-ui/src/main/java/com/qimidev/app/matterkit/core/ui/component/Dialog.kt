@@ -7,10 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,7 +24,7 @@ fun MatterKitBottomDialog(
     onDismissRequest: () -> Unit,
     dismissOnBackPress: Boolean = true,
     dismissOnClickOutside: Boolean = true,
-    content: @Composable ColumnScope.() -> Unit,
+    content: @Composable () -> Unit,
 ) {
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -45,6 +42,9 @@ fun MatterKitBottomDialog(
             systemUiController.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+        WindowFocusChangeHandler {
+            systemUiController.isNavigationBarVisible = false
+        }
 
         Card(
             modifier = Modifier
@@ -59,7 +59,6 @@ fun MatterKitBottomDialog(
             Column(
                 modifier = Modifier.fillMaxWidth()
             ) {
-
                 IconButton(
                     onClick = onDismissRequest,
                     modifier = Modifier
@@ -77,13 +76,12 @@ fun MatterKitBottomDialog(
                         modifier = Modifier.padding(4.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
                 content()
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
 }
-
 
 
 
