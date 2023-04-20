@@ -7,9 +7,11 @@ buildscript {
         // Android Build Server
         maven { url = uri("../nowinandroid-prebuilts/m2repository") }
     }
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.0")
+    }
 }
 
-@Suppress("DSL_SCOPE_VIOLATION")
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
