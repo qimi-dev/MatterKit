@@ -48,6 +48,10 @@ gradlePlugin {
             id = "matterkit.android.feature"
             implementationClass = "AndroidFeatureConventionPlugin"
         }
+        register("androidRoom") {
+            id = "matterkit.android.room"
+            implementationClass = "AndroidRoomConventionPlugin"
+        }
     }
 }
 

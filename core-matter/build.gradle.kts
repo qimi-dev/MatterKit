@@ -1,4 +1,3 @@
-
 plugins {
     id("matterkit.android.library")
 }
