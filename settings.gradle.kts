@@ -19,3 +19,4 @@ rootProject.name = "MatterKit"
 include(":app")
 include(":core-ui")
 include(":feature-main")
+include(":core-matter")
