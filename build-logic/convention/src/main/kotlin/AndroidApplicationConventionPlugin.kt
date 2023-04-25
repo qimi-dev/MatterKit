@@ -22,11 +22,6 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                 configureKotlinAndroid(this)
                 defaultConfig.targetSdk = 33
             }
-            val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
-            dependencies {
-                add("implementation", project(":feature-main"))
-                add("implementation", project(":core-ui"))
-            }
         }
     }
 

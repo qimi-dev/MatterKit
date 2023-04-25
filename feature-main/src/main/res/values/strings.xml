@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="main_page_title">My Home</string>
+    <string name="next_step">Next Step</string>
+
     <string name="setup_device_permission_tips">
         The application needs to obtain the following permissions to add devices.
     </string>
@@ -10,7 +12,7 @@
     </string>
     <string name="search_permission">Search nearby devices permissions</string>
     <string name="search_permission_description">
-        Used to discover and connect nearby devices
+        Used to discover and connect nearby devices.
     </string>
     <string name="camera_permission">Camera Permission</string>
     <string name="camera_permission_description">
@@ -18,4 +20,19 @@
     </string>
     <string name="cancel_request_permission">Cancel</string>
     <string name="confirm_request_permission">OK</string>
+
+    <string name="add_device_title">Add Device</string>
+    <string name="add_device_suggest">Scan code or hold your phone near the device.</string>
+    <string name="scan_setup_code_title">Scan a Setup Code</string>
+    <string name="scan_setup_code_description">
+        Look for a QR code on the device. Packaging.
+        or instructions and position it in the camera frame above.
+    </string>
+    <string name="hold_phone_near_device_title">Hold Phone Near Device</string>
+    <string name="hold_phone_near_device_description">
+        You can also hold your phone near this symbol if it appears on the device.
+    </string>
+    <string name="switch_to_manual_input">Switch to Manual Input</string>
+    <string name="manual_input_device_code_description">Manually enter the device sharing code.</string>
+    <string name="switch_to_scan">Switch to Scan</string>
 </resources>

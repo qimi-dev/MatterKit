@@ -30,6 +30,9 @@ android {
 }
 
 dependencies {
+    implementation(project(":feature-main"))
+    implementation(project(":core-ui"))
+
     implementation(libs.accompanist.systemuicontroller)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)

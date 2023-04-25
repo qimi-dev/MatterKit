@@ -59,21 +59,30 @@ fun MatterKitBottomDialog(
             Column(
                 modifier = Modifier.fillMaxWidth()
             ) {
-                IconButton(
-                    onClick = onDismissRequest,
-                    modifier = Modifier
-                        .padding(top = 16.dp, end = 16.dp)
-                        .size(24.dp)
-                        .align(Alignment.End),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = Color.Gray.copy(alpha = 0.15f),
-                        contentColor = Color.Gray
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = null,
-                        modifier = Modifier.padding(4.dp)
+                if (dismissOnBackPress) {
+                    IconButton(
+                        onClick = onDismissRequest,
+                        modifier = Modifier
+                            .padding(top = 16.dp, end = 16.dp)
+                            .size(24.dp)
+                            .align(Alignment.End),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = Color.Gray.copy(alpha = 0.15f),
+                            contentColor = Color.Gray
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = null,
+                            modifier = Modifier.padding(4.dp)
+                        )
+                    }
+                } else {
+                    Spacer(
+                        modifier = Modifier
+                            .padding(top = 16.dp, end = 16.dp)
+                            .size(24.dp)
+                            .align(Alignment.End)
                     )
                 }
                 content()

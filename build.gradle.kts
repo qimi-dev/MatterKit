@@ -3,12 +3,6 @@ buildscript {
     repositories {
         google()
         mavenCentral()
-
-        // Android Build Server
-        maven { url = uri("../nowinandroid-prebuilts/m2repository") }
-    }
-    dependencies {
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.0")
     }
 }
 

@@ -7,7 +7,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.util.Log
 import android.view.ViewGroup
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -31,7 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -69,13 +68,13 @@ private val setupDevicePermissions: List<String> =
 internal fun MainRoute(
     viewModel: MainViewModel = hiltViewModel()
 ) {
+    val setupDeviceState: SetupDeviceState = rememberSetupDeviceState()
     var isShowSetupDevicePermissionsRationale: Boolean by remember { mutableStateOf(false) }
-    var isMeetMinimumRequirements: Boolean by remember { mutableStateOf(false) }
     val setupDevicePermissionsState = rememberMultiplePermissionsState(
         permissions = setupDevicePermissions
     ) {
         if (it.all { it.value }) {
-            // TODO setup device
+            setupDeviceState.startSetupDevice()
         } else {
             isShowSetupDevicePermissionsRationale = true
         }
@@ -85,27 +84,21 @@ internal fun MainRoute(
             onDismissRequest = {
                 isShowSetupDevicePermissionsRationale = false
             },
-            onMeetMinimumRequirements = {
-                isMeetMinimumRequirements = true
-                // TODO setup device
-            },
             permissionsState = setupDevicePermissionsState
         )
     }
+    SetupDeviceDialog(state = setupDeviceState)
     Scaffold(
         topBar = {
             MainTopAppBar(
                 onAddDevice = {
                     // Check if the app has permissions
                     if (setupDevicePermissionsState.allPermissionsGranted) {
-                        // TODO setup device
-                    } else if (isMeetMinimumRequirements) {
-                        // TODO setup device
+                        setupDeviceState.startSetupDevice()
                     } else {
                         if (setupDevicePermissionsState.shouldShowRationale) {
                             isShowSetupDevicePermissionsRationale = true
                         } else {
-                            // Direct request
                             setupDevicePermissionsState.launchMultiplePermissionRequest()
                         }
                     }
@@ -178,7 +171,6 @@ private fun MainScreen() {
 @Composable
 private fun SetupDevicePermissionsRationale(
     onDismissRequest: () -> Unit,
-    onMeetMinimumRequirements: () -> Unit,
     permissionsState: MultiplePermissionsState
 ) {
     val context: Context = LocalContext.current
@@ -230,26 +222,7 @@ private fun SetupDevicePermissionsRationale(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = {
-                        onDismissRequest()
-                        val isMeetMinimumRequirements: Boolean
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            isMeetMinimumRequirements = permissionsState.revokedPermissions
-                                .all {
-                                    it.permission != Manifest.permission.BLUETOOTH_SCAN &&
-                                        it.permission != Manifest.permission.BLUETOOTH_CONNECT
-                                }
-                        } else {
-                            isMeetMinimumRequirements = permissionsState.revokedPermissions
-                                .all {
-                                    it.permission != Manifest.permission.ACCESS_FINE_LOCATION &&
-                                            it.permission != Manifest.permission.ACCESS_COARSE_LOCATION
-                                }
-                        }
-                        if (isMeetMinimumRequirements) {
-                            onMeetMinimumRequirements()
-                        }
-                    },
+                    onClick = onDismissRequest,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(text = stringResource(id = R.string.cancel_request_permission))
@@ -307,98 +280,6 @@ private fun PermissionSpecification(
     }
 }
 
-@SuppressLint("UnsafeOptInUsageError")
-@Composable
-private fun CodeScanningBox(
-    onResult: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var preview: Preview? by remember {
-        mutableStateOf(null)
-    }
-    AndroidView(
-        factory = { AndroidViewContext ->
-            PreviewView(AndroidViewContext).apply {
-                this.scaleType = PreviewView.ScaleType.FILL_CENTER
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                )
-                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-            }
-        },
-        modifier = modifier,
-        update = { previewView ->
-            val cameraSelector: CameraSelector = CameraSelector.Builder()
-                .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-                .build()
-            val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-            val cameraProviderFuture: ListenableFuture<ProcessCameraProvider> =
-                ProcessCameraProvider.getInstance(context)
-
-            cameraProviderFuture.addListener({
-                preview = Preview.Builder().build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
-                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-                val imageAnalysis: ImageAnalysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
-                    .also {
-                        it.setAnalyzer(cameraExecutor, object : ImageAnalysis.Analyzer {
-
-                            private var lastAnalyzedTimeStamp = 0L
-
-                            override fun analyze(image: ImageProxy) {
-                                val currentTimestamp = System.currentTimeMillis()
-                                if (currentTimestamp - lastAnalyzedTimeStamp >= 300) {
-                                    image.image?.let { imageToAnalyze ->
-                                        val options = BarcodeScannerOptions.Builder()
-                                            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                                            .build()
-                                        val barcodeScanner = BarcodeScanning.getClient(options)
-                                        val imageToProcess = InputImage.fromMediaImage(imageToAnalyze, image.imageInfo.rotationDegrees)
-
-                                        barcodeScanner.process(imageToProcess)
-                                            .addOnSuccessListener { barcodes ->
-                                                barcodes.forEach { barcode ->
-                                                    barcode.rawValue?.let { barcodeValue ->
-                                                        onResult(barcodeValue)
-                                                    }
-                                                }
-                                            }
-                                            .addOnFailureListener { exception ->
-
-                                            }
-                                            .addOnCompleteListener {
-                                                image.close()
-                                            }
-                                    }
-                                    lastAnalyzedTimeStamp = currentTimestamp
-                                } else {
-                                    image.close()
-                                }
-                            }
-
-                        })
-                    }
-                try {
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        cameraSelector,
-                        preview,
-                        imageAnalysis
-                    )
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }, ContextCompat.getMainExecutor(context))
-        }
-    )
-}
 
 
 
