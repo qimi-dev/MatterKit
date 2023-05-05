@@ -8,6 +8,9 @@ android {
 }
 
 dependencies {
+    implementation(project(":core-ui"))
+    implementation(project(":core-matter"))
+
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.camera.camera2)

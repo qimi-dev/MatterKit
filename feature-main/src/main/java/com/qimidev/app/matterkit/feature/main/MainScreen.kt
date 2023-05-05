@@ -157,7 +157,7 @@ private fun MainTopAppBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = Color.Transparent
         )
     )
 }

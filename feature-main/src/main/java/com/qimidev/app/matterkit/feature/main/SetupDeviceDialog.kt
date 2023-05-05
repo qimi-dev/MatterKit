@@ -49,6 +49,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import chip.setuppayload.SetupPayload
+import chip.setuppayload.SetupPayloadParser
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -74,6 +76,8 @@ enum class SetupDeviceStep {
 @Stable
 class SetupDeviceState {
 
+    private val setupPayloadParser: SetupPayloadParser = SetupPayloadParser()
+
     var isStartSetupDevice: Boolean by mutableStateOf(false)
         private set
 
@@ -98,6 +102,22 @@ class SetupDeviceState {
 
     fun stopSetupDevice() {
         isStartSetupDevice = false
+    }
+
+    fun onReceiveScanningContent(content: String) {
+        if (setupDeviceStep != SetupDeviceStep.GET_DEVICE_INFORMATION_BY_SCAN) {
+            return
+        }
+        val setupPayload: SetupPayload = try {
+            if (content.startsWith("MT:")) {
+                setupPayloadParser.parseQrCode(content)
+            } else {
+                setupPayloadParser.parseManualEntryCode(content)
+            }
+        } catch (e: Exception) {
+            null
+        } ?: return
+        setupDeviceStep = SetupDeviceStep.GET_DEVICE_INFORMATION_BY_MANUAL_INPUT
     }
 
 }
@@ -160,9 +180,7 @@ private fun ScanCodeDialogContent(
             shape = RoundedCornerShape(16.dp)
         ) {
             CodeScanningBox(
-                onResult = {
-                    // TODO
-                },
+                onContentCallback = state::onReceiveScanningContent,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -234,7 +252,7 @@ private fun ScanCodeDialogContent(
 @SuppressLint("UnsafeOptInUsageError")
 @Composable
 private fun CodeScanningBox(
-    onResult: (String) -> Unit,
+    onContentCallback: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -277,7 +295,7 @@ private fun CodeScanningBox(
 
                             override fun analyze(image: ImageProxy) {
                                 val currentTimestamp = System.currentTimeMillis()
-                                if (currentTimestamp - lastAnalyzedTimeStamp >= 300) {
+                                if (currentTimestamp - lastAnalyzedTimeStamp >= 100) {
                                     image.image?.let { imageToAnalyze ->
                                         val options = BarcodeScannerOptions.Builder()
                                             .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
@@ -289,7 +307,7 @@ private fun CodeScanningBox(
                                             .addOnSuccessListener { barcodes ->
                                                 barcodes.forEach { barcode ->
                                                     barcode.rawValue?.let { barcodeValue ->
-                                                        onResult(barcodeValue)
+                                                        onContentCallback(barcodeValue)
                                                     }
                                                 }
                                             }
