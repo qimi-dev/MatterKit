@@ -10,6 +10,7 @@ android {
 dependencies {
     implementation(project(":core-ui"))
     implementation(project(":core-matter"))
+    implementation(project(":core-model"))
 
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)

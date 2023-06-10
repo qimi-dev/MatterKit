@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Common -->
     <string name="main_page_title">My Home</string>
     <string name="next_step">Next Step</string>
-
+    <!-- Setup device permissions -->
     <string name="setup_device_permission_tips">
         The application needs to obtain the following permissions to add devices.
     </string>
@@ -20,7 +21,7 @@
     </string>
     <string name="cancel_request_permission">Cancel</string>
     <string name="confirm_request_permission">OK</string>
-
+    <!-- Setup device dialog -->
     <string name="add_device_title">Add Device</string>
     <string name="add_device_suggest">Scan code or hold your phone near the device.</string>
     <string name="scan_setup_code_title">Scan a Setup Code</string>
@@ -35,4 +36,20 @@
     <string name="switch_to_manual_input">Switch to Manual Input</string>
     <string name="manual_input_device_code_description">Manually enter the device sharing code.</string>
     <string name="switch_to_scan">Switch to Scan</string>
+    <string name="invalid_sharing_code">Invalid sharing code</string>
+    <string name="provide_wifi_credentials_title">Provide wifi credentials</string>
+    <string name="provide_wifi_credentials_hint">
+        Enter the wifi name and password that the device needs to connect to.
+    </string>
+    <string name="input_wifi_ssid_hint">Enter wifi ssid</string>
+    <string name="input_wifi_password_hint">Enter wifi password</string>
+    <string name="start_pair_device">Start pair device</string>
+    <string name="connecting_to_device_title">Connecting to device</string>
+    <string name="connecting_to_device_hint">
+        Make sure device is connected to power and nearly.
+    </string>
+    <string name="provide_device_name_title">Device Name</string>
+    <string name="provide_device_name_hint">
+        Give your new device a name.
+    </string>
 </resources>

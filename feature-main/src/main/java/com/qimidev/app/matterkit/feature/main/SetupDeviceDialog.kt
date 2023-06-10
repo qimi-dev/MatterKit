@@ -9,48 +9,55 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.AnimationConstants
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Stable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import chip.setuppayload.SetupPayload
-import chip.setuppayload.SetupPayloadParser
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -61,102 +68,70 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 @Composable
-fun rememberSetupDeviceState(): SetupDeviceState {
-    return remember { SetupDeviceState() }
-}
-
-enum class SetupDeviceStep {
-
-    GET_DEVICE_INFORMATION_BY_SCAN,
-
-    GET_DEVICE_INFORMATION_BY_MANUAL_INPUT
-
-}
-
-@Stable
-class SetupDeviceState {
-
-    private val setupPayloadParser: SetupPayloadParser = SetupPayloadParser()
-
-    var isStartSetupDevice: Boolean by mutableStateOf(false)
-        private set
-
-    var setupDeviceStep: SetupDeviceStep by mutableStateOf(SetupDeviceStep.GET_DEVICE_INFORMATION_BY_SCAN)
-        private set
-
-    fun startSetupDevice() {
-        isStartSetupDevice = true
-    }
-
-    fun switchToManualInput() {
-        if (setupDeviceStep == SetupDeviceStep.GET_DEVICE_INFORMATION_BY_SCAN) {
-            setupDeviceStep = SetupDeviceStep.GET_DEVICE_INFORMATION_BY_MANUAL_INPUT
-        }
-    }
-
-    fun switchToScan() {
-        if (setupDeviceStep == SetupDeviceStep.GET_DEVICE_INFORMATION_BY_MANUAL_INPUT) {
-            setupDeviceStep = SetupDeviceStep.GET_DEVICE_INFORMATION_BY_SCAN
-        }
-    }
-
-    fun stopSetupDevice() {
-        isStartSetupDevice = false
-    }
-
-    fun onReceiveScanningContent(content: String) {
-        if (setupDeviceStep != SetupDeviceStep.GET_DEVICE_INFORMATION_BY_SCAN) {
-            return
-        }
-        val setupPayload: SetupPayload = try {
-            if (content.startsWith("MT:")) {
-                setupPayloadParser.parseQrCode(content)
-            } else {
-                setupPayloadParser.parseManualEntryCode(content)
-            }
-        } catch (e: Exception) {
-            null
-        } ?: return
-        setupDeviceStep = SetupDeviceStep.GET_DEVICE_INFORMATION_BY_MANUAL_INPUT
-    }
-
-}
-
-@Composable
-internal fun SetupDeviceDialog(state: SetupDeviceState) {
-    if (state.isStartSetupDevice) {
-        MatterKitBottomDialog(
-            onDismissRequest = state::stopSetupDevice,
-            dismissOnClickOutside = false
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .animateContentSize()
-            ) {
-                when (state.setupDeviceStep) {
-                    SetupDeviceStep.GET_DEVICE_INFORMATION_BY_SCAN -> {
-                        ScanCodeDialogContent(
-                            state = state,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    SetupDeviceStep.GET_DEVICE_INFORMATION_BY_MANUAL_INPUT -> {
-                        ManualInputCodeDialogContent(
-                            state = state,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+internal fun SetupDeviceDialog(uiState: SetupDeviceDialogUiState) {
+    MatterKitBottomDialog(
+        onDismissRequest = {
+            when (uiState) {
+                is SetupDeviceDialogUiState.ParseQrCode -> uiState.onDismissRequest()
+                is SetupDeviceDialogUiState.ParseManualEntryCode -> uiState.onDismissRequest()
+                is SetupDeviceDialogUiState.ProvideWifiCredentials -> uiState.onDismissRequest()
+                is SetupDeviceDialogUiState.Connecting -> {
+                    if (uiState.isClosable) uiState.onDismissRequest()
                 }
+                is SetupDeviceDialogUiState.ProvideDeviceName -> uiState.onDismissRequest()
+                else -> Unit
+            }
+        },
+        dismissOnClickOutside = false
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .animateContentSize()
+        ) {
+            when (uiState) {
+                is SetupDeviceDialogUiState.ParseQrCode -> {
+                    ParseQrCodeContent(
+                        onParseQrCode = uiState.onParseQrCode,
+                        onToggleToManualEntryCode = uiState.onToggleToManualEntryCode,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                is SetupDeviceDialogUiState.ParseManualEntryCode -> {
+                    ParseManualEntryCodeContent(
+                        onParseManualEntryCode = uiState.onParseManualEntryCode,
+                        onToggleToQrCode = uiState.onToggleToQrCode,
+                        errorMessage = uiState.errorMessage,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                is SetupDeviceDialogUiState.ProvideWifiCredentials -> {
+                    ProvideWifiCredentialsContent(
+                        onProvideWifiCredentials = uiState.onProvideWifiCredentials,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                is SetupDeviceDialogUiState.Connecting -> {
+                    ConnectingContent(
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                is SetupDeviceDialogUiState.ProvideDeviceName -> {
+                    ProvideDeviceNameContent(
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                else -> Unit
             }
         }
     }
 }
 
 @Composable
-private fun ScanCodeDialogContent(
-    state: SetupDeviceState,
+private fun ParseQrCodeContent(
+    onParseQrCode: (String) -> Unit,
+    onToggleToManualEntryCode: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -170,7 +145,9 @@ private fun ScanCodeDialogContent(
         )
         Text(
             text = stringResource(id = R.string.add_device_suggest),
-            style = MaterialTheme.typography.titleSmall
+            style = MaterialTheme.typography.titleSmall.copy(
+                textAlign = TextAlign.Center
+            )
         )
         Surface(
             modifier = Modifier
@@ -180,7 +157,7 @@ private fun ScanCodeDialogContent(
             shape = RoundedCornerShape(16.dp)
         ) {
             CodeScanningBox(
-                onContentCallback = state::onReceiveScanningContent,
+                onContentCallback = onParseQrCode,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -241,7 +218,7 @@ private fun ScanCodeDialogContent(
             }
         }
         Button(
-            onClick = state::switchToManualInput,
+            onClick = onToggleToManualEntryCode,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = stringResource(id = R.string.switch_to_manual_input))
@@ -256,10 +233,22 @@ private fun CodeScanningBox(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var preview: Preview? by remember {
-        mutableStateOf(null)
+    val lifecycleOwner by remember {
+        mutableStateOf(object : LifecycleOwner {
+
+            val lifecycleRegistry: LifecycleRegistry = LifecycleRegistry(this)
+
+            override val lifecycle: Lifecycle = lifecycleRegistry
+
+        })
     }
+    DisposableEffect(Unit) {
+        lifecycleOwner.lifecycleRegistry.currentState = Lifecycle.State.STARTED
+        onDispose {
+            lifecycleOwner.lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        }
+    }
+    var preview: Preview? by remember { mutableStateOf(null) }
     AndroidView(
         factory = { AndroidViewContext ->
             PreviewView(AndroidViewContext).apply {
@@ -343,8 +332,10 @@ private fun CodeScanningBox(
 }
 
 @Composable
-private fun ManualInputCodeDialogContent(
-    state: SetupDeviceState,
+private fun ParseManualEntryCodeContent(
+    onParseManualEntryCode: (String) -> Unit,
+    onToggleToQrCode: () -> Unit,
+    errorMessage: String?,
     modifier: Modifier = Modifier
 ) {
     var deviceSharingCode: String by remember { mutableStateOf("") }
@@ -359,7 +350,9 @@ private fun ManualInputCodeDialogContent(
         )
         Text(
             text = stringResource(id = R.string.manual_input_device_code_description),
-            style = MaterialTheme.typography.titleSmall
+            style = MaterialTheme.typography.titleSmall.copy(
+                textAlign = TextAlign.Center
+            )
         )
         TextField(
             value = deviceSharingCode,
@@ -372,6 +365,10 @@ private fun ManualInputCodeDialogContent(
             ),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
+            supportingText = {
+                if (errorMessage != null) { Text(text = errorMessage) }
+            },
+            isError = errorMessage != null,
             colors = TextFieldDefaults.colors(
                 unfocusedContainerColor = MaterialTheme.colorScheme.background,
                 focusedContainerColor = MaterialTheme.colorScheme.background,
@@ -390,13 +387,13 @@ private fun ManualInputCodeDialogContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = state::switchToScan,
+                onClick = onToggleToQrCode,
                 modifier = Modifier.weight(1f)
             ) {
                 Text(text = stringResource(id = R.string.switch_to_scan))
             }
             Button(
-                onClick = {},
+                onClick = { onParseManualEntryCode(deviceSharingCode) },
                 modifier = Modifier.weight(1f)
             ) {
                 Text(text = stringResource(id = R.string.next_step))
@@ -405,9 +402,163 @@ private fun ManualInputCodeDialogContent(
     }
 }
 
+@Composable
+private fun ProvideWifiCredentialsContent(
+    onProvideWifiCredentials: (String, String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var wifiSSID: String by remember { mutableStateOf("") }
+    var wifiPassword: String by remember { mutableStateOf("") }
+    var isPasswordVisible: Boolean by remember { mutableStateOf(false) }
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = stringResource(id = R.string.provide_wifi_credentials_title),
+            style = MaterialTheme.typography.titleLarge
+        )
+        Text(
+            text = stringResource(id = R.string.provide_wifi_credentials_hint),
+            style = MaterialTheme.typography.titleSmall.copy(
+                textAlign = TextAlign.Center
+            )
+        )
+        OutlinedTextField(
+            value = wifiSSID,
+            onValueChange = {
+                wifiSSID = it
+            },
+            textStyle = MaterialTheme.typography.bodyLarge,
+            label = {
+                Text(text = stringResource(id = R.string.input_wifi_ssid_hint))
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(16.dp),
+            colors = TextFieldDefaults.colors(
+                unfocusedContainerColor = MaterialTheme.colorScheme.background,
+                focusedContainerColor = MaterialTheme.colorScheme.background,
+                unfocusedIndicatorColor = MaterialTheme.colorScheme.onBackground,
+                focusedIndicatorColor = MaterialTheme.colorScheme.onBackground,
+                cursorColor = MaterialTheme.colorScheme.onBackground,
+                selectionColors = TextSelectionColors(
+                    handleColor = MaterialTheme.colorScheme.onBackground,
+                    backgroundColor = MaterialTheme.colorScheme.secondary
+                ),
+                focusedLabelColor = MaterialTheme.colorScheme.onBackground,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onBackground
+            )
+        )
+        OutlinedTextField(
+            value = wifiPassword,
+            onValueChange = {
+                wifiPassword = it
+            },
+            label = {
+                Text(text = stringResource(id = R.string.input_wifi_password_hint))
+            },
+            singleLine = true,
+            visualTransformation = if (isPasswordVisible) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            trailingIcon = {
+                val iconPainter: Painter = if (isPasswordVisible) {
+                    painterResource(id = R.drawable.ic_visibility_24)
+                } else {
+                    painterResource(id = R.drawable.ic_visibility_off_24)
+                }
+                IconButton(
+                    onClick = {
+                        isPasswordVisible = !isPasswordVisible
+                    }
+                ){
+                    Icon(
+                        painter = iconPainter,
+                        contentDescription = null
+                    )
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            colors = TextFieldDefaults.colors(
+                unfocusedContainerColor = MaterialTheme.colorScheme.background,
+                focusedContainerColor = MaterialTheme.colorScheme.background,
+                unfocusedIndicatorColor = MaterialTheme.colorScheme.onBackground,
+                focusedIndicatorColor = MaterialTheme.colorScheme.onBackground,
+                cursorColor = MaterialTheme.colorScheme.onBackground,
+                selectionColors = TextSelectionColors(
+                    handleColor = MaterialTheme.colorScheme.onBackground,
+                    backgroundColor = MaterialTheme.colorScheme.secondary
+                ),
+                focusedLabelColor = MaterialTheme.colorScheme.onBackground,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onBackground,
+                focusedTrailingIconColor = MaterialTheme.colorScheme.onBackground,
+                unfocusedTrailingIconColor = MaterialTheme.colorScheme.onBackground
+            )
+        )
+        Button(
+            onClick = { onProvideWifiCredentials(wifiSSID, wifiPassword) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = stringResource(id = R.string.start_pair_device))
+        }
+    }
+}
 
+@Composable
+private fun ConnectingContent(
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = stringResource(id = R.string.connecting_to_device_title),
+            style = MaterialTheme.typography.titleLarge
+        )
+        Text(
+            text = stringResource(id = R.string.connecting_to_device_hint),
+            style = MaterialTheme.typography.titleSmall.copy(
+                textAlign = TextAlign.Center
+            )
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Surface(shape = CircleShape) {
+            LinearProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.onPrimary
+            )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
 
+@Composable
+private fun ProvideDeviceNameContent(
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = stringResource(id = R.string.provide_device_name_title),
+            style = MaterialTheme.typography.titleLarge
+        )
+        Text(
+            text = stringResource(id = R.string.provide_device_name_hint),
+            style = MaterialTheme.typography.titleSmall.copy(
+                textAlign = TextAlign.Center
+            )
+        )
 
+    }
+}
 
 
 

@@ -1,4 +1,4 @@
-package com.qimidev.app.matterkit.core.database.dao
+package com.qimidev.app.matterkit.core.database.di
 
 import android.content.Context
 import androidx.room.Room

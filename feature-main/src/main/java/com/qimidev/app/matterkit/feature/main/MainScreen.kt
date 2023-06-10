@@ -68,13 +68,12 @@ private val setupDevicePermissions: List<String> =
 internal fun MainRoute(
     viewModel: MainViewModel = hiltViewModel()
 ) {
-    val setupDeviceState: SetupDeviceState = rememberSetupDeviceState()
     var isShowSetupDevicePermissionsRationale: Boolean by remember { mutableStateOf(false) }
     val setupDevicePermissionsState = rememberMultiplePermissionsState(
         permissions = setupDevicePermissions
     ) {
         if (it.all { it.value }) {
-            setupDeviceState.startSetupDevice()
+            viewModel.openSetupDeviceDialog()
         } else {
             isShowSetupDevicePermissionsRationale = true
         }
@@ -87,14 +86,21 @@ internal fun MainRoute(
             permissionsState = setupDevicePermissionsState
         )
     }
-    SetupDeviceDialog(state = setupDeviceState)
+
+    val setupDeviceDialogUiState: SetupDeviceDialogUiState by viewModel
+        .setupDeviceDialogUiState.collectAsState()
+    if (setupDeviceDialogUiState !is SetupDeviceDialogUiState.Hidden) {
+        SetupDeviceDialog(
+            uiState = setupDeviceDialogUiState
+        )
+    }
     Scaffold(
         topBar = {
             MainTopAppBar(
                 onAddDevice = {
                     // Check if the app has permissions
                     if (setupDevicePermissionsState.allPermissionsGranted) {
-                        setupDeviceState.startSetupDevice()
+                        viewModel.openSetupDeviceDialog()
                     } else {
                         if (setupDevicePermissionsState.shouldShowRationale) {
                             isShowSetupDevicePermissionsRationale = true
