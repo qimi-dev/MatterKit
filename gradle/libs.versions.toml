@@ -1,10 +1,10 @@
 [versions]
-androidxComposeCompiler = "1.4.1"
+androidxComposeCompiler = "1.4.6"
 accompanist = "0.28.0"
 androidGradlePlugin = "8.0.0"
-kotlin = "1.8.0"
-androidxComposeBom = "2023.01.00"
-androidxComposeMaterial3 = "1.1.0-beta02"
+kotlin = "1.8.20"
+androidxComposeBom = "2023.04.01"
+androidxComposeMaterial3 = "1.2.0-alpha02"
 androidxCore = "1.9.0"
 hilt = "2.44.2"
 androidxNavigation = "2.5.3"
@@ -12,7 +12,7 @@ androidxHiltNavigationCompose = "1.0.0"
 camerax = "1.2.0"
 barcodeScanning = "17.0.3"
 room = "2.5.0"
-ksp = "1.8.0-1.0.9"
+ksp = "1.8.21-1.0.11"
 
 [libraries]
 accompanist-systemuicontroller = { group = "com.google.accompanist", name = "accompanist-systemuicontroller", version.ref = "accompanist" }
